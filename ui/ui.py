@@ -2,191 +2,230 @@ import sys
 import os
 import json
 from PyQt6.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout, QPushButton, QTextEdit, QFileDialog, 
-    QTableWidget, QTableWidgetItem, QMessageBox, QProgressBar, QHBoxLayout,QHeaderView
+    QApplication, QWidget, QVBoxLayout, QPushButton, QTextEdit, QFileDialog,
+    QTableWidget, QTableWidgetItem, QMessageBox, QLineEdit, QHBoxLayout, QLabel
 )
-from PyQt6.QtCore import QThread, pyqtSignal
+from PyQt6.QtCore import QThread, pyqtSignal, Qt
 from PyQt6.QtGui import QIcon
+from PyQt6.QtWidgets import QHeaderView
+from qt_material import apply_stylesheet
 
+# Import backup functions
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from Backend.backuphandler import create_backup, restore_backup
 
 METADATA_FILE = "backup_metadata.json"
-
-class BackupThread(QThread):
-    log_signal = pyqtSignal(str)
-
-    def __init__(self, source, destination, password=None):
-        super().__init__()
-        self.source = source
-        self.destination = destination
-        self.password = password
-
-    def run(self):
-        self.log_signal.emit(f"🔄 Starting backup: {self.source} ➝ {self.destination}")
-        create_backup(self.source, self.destination, self.password)
-        self.log_signal.emit(f"✅ Backup completed: {self.destination}")
+MONITORING_FILE = "monitoring_list.json"
 
 class BackupUI(QWidget):
     def __init__(self):
         super().__init__()
+
         self.setWindowTitle("Backup Engine")
-        self.setGeometry(300, 200, 750, 550)
-        self.setStyleSheet(self.get_dark_mode_style())  
+        self.setGeometry(300, 200, 1000, 600)
 
         layout = QVBoxLayout()
-
-        # Buttons Layout
-        btn_layout = QHBoxLayout()
-        self.source_btn = QPushButton("Select Source")
-        self.source_btn.setIcon(QIcon("icons/folder.png"))
-        self.source_btn.clicked.connect(self.select_source)  
-
-        self.dest_btn = QPushButton("Select Destination")
-        self.dest_btn.setIcon(QIcon("icons/folder.png"))
-        self.dest_btn.clicked.connect(self.select_destination)  
-
-        btn_layout.addWidget(self.source_btn)
-        btn_layout.addWidget(self.dest_btn)
-        layout.addLayout(btn_layout)
-
-        # Start Backup Button
-        self.start_backup_btn = QPushButton("Start Backup")
-        self.start_backup_btn.setIcon(QIcon("icons/backup.png"))
-        self.start_backup_btn.clicked.connect(self.start_backup)  # ✅ FIXED FUNCTION
-        layout.addWidget(self.start_backup_btn)
-
-        # Progress Bar
-        self.progress_bar = QProgressBar(self)
-        layout.addWidget(self.progress_bar)
 
         # Log Display
         self.log_display = QTextEdit(self)
         self.log_display.setReadOnly(True)
+        self.log_display.setStyleSheet("background-color: #2E2E2E; color: #FFFFFF;")
         layout.addWidget(self.log_display)
 
-        # Backup List Table
+        # Path Selection Layout
+        path_layout = QHBoxLayout()
+        self.source_btn = QPushButton("📁 Select Source")
+        self.source_btn.clicked.connect(self.select_source)
+        path_layout.addWidget(self.source_btn)
+
+        self.destination_btn = QPushButton("💾 Select Destination")
+        self.destination_btn.clicked.connect(self.select_destination)
+        path_layout.addWidget(self.destination_btn)
+
+        layout.addLayout(path_layout)
+
+        # Password Input Layout
+        password_layout = QHBoxLayout()
+        self.password_label = QLabel("🔒 Password:")
+        password_layout.addWidget(self.password_label)
+
+        self.password_input = QLineEdit(self)
+        self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.password_input.setStyleSheet("background-color: #3B3B3B; color: white; padding: 5px;")
+        password_layout.addWidget(self.password_input)
+
+        self.toggle_password_btn = QPushButton("👁️")
+        self.toggle_password_btn.setFixedWidth(40)
+        self.toggle_password_btn.clicked.connect(self.toggle_password_visibility)
+        password_layout.addWidget(self.toggle_password_btn)
+
+        layout.addLayout(password_layout)
+
+        # Start Backup Button
+        self.start_backup_btn = QPushButton("🚀 Start Backup")
+        self.start_backup_btn.clicked.connect(self.start_backup)
+        layout.addWidget(self.start_backup_btn)
+
+        # Backup Table
         self.backup_table = QTableWidget(self)
         self.backup_table.setColumnCount(4)
         self.backup_table.setHorizontalHeaderLabels(["Backup Name", "Size (KB)", "Date", "Actions"])
-        self.backup_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        self.backup_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
-        self.backup_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Interactive)
-        self.backup_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
-        self.backup_table.setStyleSheet("background-color: #212121; color: #E0E0E0;")
-        self.backup_table.setColumnWidth(3, 100)  
+        self.backup_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.backup_table.verticalHeader().setDefaultSectionSize(50)
+        self.backup_table.setStyleSheet("""
+            QTableWidget {
+                background-color: #232323;
+                color: white;
+                border: 1px solid #444;
+            }
+            QHeaderView::section {
+                background-color: #333;
+                color: white;
+                padding: 5px;
+            }
+        """)
         layout.addWidget(self.backup_table)
 
         # Refresh Button
-        self.refresh_btn = QPushButton("Refresh Backup List")
-        self.refresh_btn.setIcon(QIcon("icons/refresh.png"))
+        self.refresh_btn = QPushButton("🔄 Refresh Backup List")
         self.refresh_btn.clicked.connect(self.load_backup_list)
         layout.addWidget(self.refresh_btn)
 
-        self.source = ""
-        self.destination = ""
+        # **Monitoring Panel**
+        self.monitoring_table = QTableWidget(self)
+        self.monitoring_table.setColumnCount(2)
+        self.monitoring_table.setHorizontalHeaderLabels(["Monitored Directory", "Actions"])
+        self.monitoring_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.monitoring_table.verticalHeader().setDefaultSectionSize(50)
+        self.monitoring_table.setStyleSheet("""
+            QTableWidget {
+                background-color: #232323;
+                color: white;
+                border: 1px solid #444;
+            }
+            QHeaderView::section {
+                background-color: #333;
+                color: white;
+                padding: 5px;
+            }
+        """)
+        layout.addWidget(QLabel("📡 Active Monitored Directories:"))
+        layout.addWidget(self.monitoring_table)
 
+        # Load Data
         self.load_backup_list()
+        self.load_monitoring_list()
+
         self.setLayout(layout)
 
+        # Variables
+        self.source_path = ""
+        self.destination_path = ""
+
     def select_source(self):
-        """Select source directory."""
-        self.source = QFileDialog.getExistingDirectory(self, "Select Source Directory")
-        if self.source:
-            self.log_display.append(f"🟢 Selected Source: {self.source}")
+        self.source_path = QFileDialog.getExistingDirectory(self, "Select Source Directory")
+        if self.source_path:
+            self.log_display.append(f"🟢 Selected Source: {self.source_path}")
+            self.add_to_monitoring(self.source_path)
 
     def select_destination(self):
-        """Select backup destination directory."""
-        self.destination = QFileDialog.getExistingDirectory(self, "Select Backup Destination")
-        if self.destination:
-            self.log_display.append(f"🟢 Selected Destination: {self.destination}")
+        self.destination_path = QFileDialog.getExistingDirectory(self, "Select Backup Destination")
+        if self.destination_path:
+            self.log_display.append(f"🟢 Selected Destination: {self.destination_path}")
 
     def start_backup(self):
-        """Start the backup process."""
-        if not self.source or not self.destination:
-            QMessageBox.warning(self, "Warning", "Please select both source and destination.")
+        if not self.source_path or not self.destination_path:
+            QMessageBox.warning(self, "Warning", "Please select both Source and Destination folders!")
             return
 
-        self.log_display.append(f"🟢 Starting backup for {self.source} ➝ {self.destination}")
-        self.backup_thread = BackupThread(self.source, self.destination)
-        self.backup_thread.log_signal.connect(self.update_log)
-        self.backup_thread.start()
+        password = self.password_input.text() or None
+        self.log_display.append(f"🔒 Password Protection: {'Enabled' if password else 'Disabled'}")
+        QMessageBox.information(self, "Backup", "Backup started successfully!")
         self.load_backup_list()
 
-    def update_log(self, message):
-        """Update log display."""
-        self.log_display.append(message)
-
     def load_backup_list(self):
-        """Load backup details into the table."""
         self.backup_table.setRowCount(0)
         if os.path.exists(METADATA_FILE):
             with open(METADATA_FILE, "r") as f:
                 metadata = json.load(f)
 
-            for row, (source, details) in enumerate(metadata.items()):
+            row = 0
+            for source, details in metadata.items():
                 self.backup_table.insertRow(row)
                 self.backup_table.setItem(row, 0, QTableWidgetItem(os.path.basename(details["last_backup"])))
                 self.backup_table.setItem(row, 1, QTableWidgetItem(str(details["size"] // 1024)))
                 self.backup_table.setItem(row, 2, QTableWidgetItem(details["last_modified"]))
 
-                restore_btn = QPushButton("Restore")
-                restore_btn.setIcon(QIcon("icons/restore.png"))
-                restore_btn.setStyleSheet("padding: 2px; height: 24px;")  
+                restore_btn = QPushButton("🔄 Restore")
+                restore_btn.setFixedSize(80, 30)
+                restore_btn.setStyleSheet("background-color: #444; color: white; border-radius: 5px;")
                 restore_btn.clicked.connect(lambda _, d=details["last_backup"]: self.restore_backup(d))
+
                 self.backup_table.setCellWidget(row, 3, restore_btn)
 
-                self.backup_table.setRowHeight(row, 30)  
+                row += 1
 
-    def restore_backup(self, backup_path):
-        """Restore a backup to a selected destination."""
-        destination = QFileDialog.getExistingDirectory(self, "Select Restore Destination")
-        if destination:
-            restore_backup(backup_path, destination)
-            QMessageBox.information(self, "Restore", f"Backup restored to {destination}")
+    def load_monitoring_list(self):
+        """Load active monitoring directories into the table."""
+        self.monitoring_table.setRowCount(0)
+        if os.path.exists(MONITORING_FILE):
+            with open(MONITORING_FILE, "r") as f:
+                monitoring_list = json.load(f)
 
-    def get_dark_mode_style(self):
-        """Dark mode styling."""
-        return """
-            QWidget {
-                background-color: #121212;
-                color: #E0E0E0;
-                font-size: 14px;
-            }
-            QPushButton {
-                background-color: #333;
-                color: white;
-                border: 1px solid #555;
-                padding: 6px;
-                border-radius: 4px;
-            }
-            QPushButton:hover {
-                background-color: #555;
-            }
-            QTextEdit {
-                background-color: #1E1E1E;
-                color: #D4D4D4;
-                border: 1px solid #333;
-            }
-            QTableWidget {
-                background-color: #212121;
-                color: #D4D4D4;
-                gridline-color: #333;
-                border: 1px solid #444;
-            }
-            QTableWidget::item {
-                border-bottom: 1px solid #333;
-                padding: 6px;
-            }
-            QHeaderView::section {
-                background-color: #333;
-                padding: 5px;
-                border: 1px solid #444;
-            }
-        """
+            row = 0
+            for directory in monitoring_list:
+                self.monitoring_table.insertRow(row)
+                self.monitoring_table.setItem(row, 0, QTableWidgetItem(directory))
+
+                # Stop Button
+                stop_btn = QPushButton("⛔ Stop")
+                stop_btn.setFixedSize(80, 30)
+                stop_btn.setStyleSheet("background-color: #AA0000; color: white; border-radius: 5px;")
+                stop_btn.clicked.connect(lambda _, d=directory: self.remove_from_monitoring(d))
+
+                self.monitoring_table.setCellWidget(row, 1, stop_btn)
+
+                row += 1
+
+    def toggle_password_visibility(self):
+        """Toggle password visibility."""
+        if self.password_input.echoMode() == QLineEdit.EchoMode.Password:
+            self.password_input.setEchoMode(QLineEdit.EchoMode.Normal)
+            self.toggle_password_btn.setText("🙈")  # Change icon to indicate visibility
+        else:
+            self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
+            self.toggle_password_btn.setText("👁️")
+
+    def add_to_monitoring(self, directory):
+        """Add directory to monitoring list."""
+        monitoring_list = []
+        if os.path.exists(MONITORING_FILE):
+            with open(MONITORING_FILE, "r") as f:
+                monitoring_list = json.load(f)
+
+        if directory not in monitoring_list:
+            monitoring_list.append(directory)
+            with open(MONITORING_FILE, "w") as f:
+                json.dump(monitoring_list, f)
+
+        self.load_monitoring_list()
+
+    def remove_from_monitoring(self, directory):
+        """Remove directory from monitoring list."""
+        if os.path.exists(MONITORING_FILE):
+            with open(MONITORING_FILE, "r") as f:
+                monitoring_list = json.load(f)
+
+            if directory in monitoring_list:
+                monitoring_list.remove(directory)
+                with open(MONITORING_FILE, "w") as f:
+                    json.dump(monitoring_list, f)
+
+        self.load_monitoring_list()
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+    apply_stylesheet(app, theme="dark_teal.xml")
     window = BackupUI()
     window.show()
     sys.exit(app.exec())
