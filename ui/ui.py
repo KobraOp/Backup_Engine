@@ -13,7 +13,6 @@ from qt_material import apply_stylesheet
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
-# Import backup functions
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from Backend.backuphandler import create_backup, restore_backup
 
@@ -164,7 +163,6 @@ class BackupUI(QWidget):
         self.auto_add_backed_up_dirs_to_monitoring()
 
     def auto_add_backed_up_dirs_to_monitoring(self):
-        """Ensures previously backed-up directories are added to monitoring automatically."""
         if not os.path.exists(METADATA_FILE):
             return
 
@@ -196,10 +194,9 @@ class BackupUI(QWidget):
                 json.dump(monitoring_list, f)
 
         self.start_monitoring()
-        self.load_monitoring_list()  # FIX: Function added
+        self.load_monitoring_list()
 
     def load_monitoring_list(self):
-        """Loads and displays monitored directories."""
         self.monitoring_table.setRowCount(0)
         if os.path.exists(MONITORING_FILE):
             with open(MONITORING_FILE, "r") as f:

@@ -3,7 +3,6 @@ import zipfile
 import pyzipper
 
 def list_backups(backup_dir):
-    """List all available backup files in the backup directory."""
     backups = [f for f in os.listdir(backup_dir) if f.endswith(".zip")]
     if not backups:
         print("No backups found.")
@@ -16,7 +15,6 @@ def list_backups(backup_dir):
     return backups
 
 def restore_backup():
-    """Restore selected backup."""
     backup_dir = input("Enter the backup directory path: ").strip()
     if not os.path.exists(backup_dir):
         print("Invalid backup directory.")
@@ -41,14 +39,12 @@ def restore_backup():
         print("Please enter a valid number.")
 
 def extract_backup(zip_path, destination):
-    """Extract a ZIP backup, handling password protection."""
     try:
         with pyzipper.AESZipFile(zip_path, "r") as zipf:
             if zipf.testzip() is not None:
                 print("ZIP file is corrupted.")
                 return
             
-            # Check if ZIP file is password-protected
             try:
                 zipf.extractall(destination)
                 print(f"Backup restored to: {destination if destination else 'original location'}")
