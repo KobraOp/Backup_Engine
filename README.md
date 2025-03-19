@@ -2,8 +2,6 @@
 
 Backup Engine is a powerful, **AI-enhanced** backup and recovery tool that automatically tracks file changes, compresses backups, and allows easy restoration. 🚀  
 
-![Backup Engine UI](https://your-image-url.com)  
-
 ---
 
 ## 🎯 **Features**  
