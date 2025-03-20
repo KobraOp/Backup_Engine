@@ -1,4 +1,4 @@
 /Backend/__pycache__/*
 /BackupEngine.spec
 /build/*
-/dist/*
+/dist/BackupEngine/_internal/
