@@ -2,6 +2,8 @@ import sys
 import os
 import json
 import time
+import PyQt6
+import qt_material
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QPushButton, QTextEdit, QFileDialog,
     QTableWidget, QTableWidgetItem, QMessageBox, QHBoxLayout, QLabel
