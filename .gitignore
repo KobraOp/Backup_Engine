@@ -2,3 +2,4 @@
 /BackupEngine.spec
 /build/*
 /dist/BackupEngine/_internal/
+/__pycache__/*
